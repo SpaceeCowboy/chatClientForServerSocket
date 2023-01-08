@@ -5,7 +5,7 @@ import logger.Logger;
 import java.io.*;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
-import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Scanner;
 
@@ -30,42 +30,24 @@ public class Client {
     }
 
     public void sendMsg() {
-        try {
-            Scanner scanner = new Scanner(System.in);
-            if (username == null) {
+        try (Scanner scanner = new Scanner(System.in)) {
+            if (username == null && socket.isConnected()) {
                 System.out.println("Set your nickname: ");
                 username = scanner.next();
                 bufferedWriter.write(username);
                 bufferedWriter.newLine();
                 bufferedWriter.flush();
             }
-
-            while (socket.isConnected()) {
+            while (!socket.isClosed()) {
                 String msgToSend = scanner.nextLine();
-                if(!msgToSend.equals("")){
+                if (!msgToSend.equals("") && msgToSend != null) {
                     bufferedWriter.write(username + ": " + msgToSend);
                     bufferedWriter.newLine();
                     bufferedWriter.flush();
                 }
-
             }
         } catch (IOException e) {
             closeEverything(socket, bufferedWriter, bufferedReader);
-        }
-    }
-
-    public static void readSettings(){
-        try(FileReader reader = new FileReader("C:\\Users\\lshap\\IdeaProjects\\server\\settings.txt"))
-        {
-            int c;
-            StringBuilder stringBuilder = new StringBuilder();
-            while((c=reader.read())!=-1){
-                stringBuilder.append((char)c);
-            }
-            System.out.println(stringBuilder.toString().trim() + " для подключения к серверу");
-        }
-        catch(IOException ex){
-            System.out.println(ex.getMessage());
         }
     }
 
@@ -76,8 +58,15 @@ public class Client {
             while (socket.isConnected()) {
                 try {
                     msgFromGroupChat = bufferedReader.readLine();
+                    if (msgFromGroupChat == null) {
+                        System.out.println("Нажмите Enter для завершения работы");
+                        closeEverything(socket, bufferedWriter, bufferedReader);
+                        break;
+                    }
                     System.out.println(formatForDateNow.format(dateNow) + " " + msgFromGroupChat);
-                    logger.log(formatForDateNow.format(dateNow) + " " + msgFromGroupChat);
+                    if (!username.equals(Arrays.stream(msgFromGroupChat.trim().split(":")).toList().get(0))) {
+                        logger.log(formatForDateNow.format(dateNow) + " " + msgFromGroupChat);
+                    }
 
                 } catch (IOException e) {
                     closeEverything(socket, bufferedWriter, bufferedReader);
@@ -89,28 +78,27 @@ public class Client {
 
     public void closeEverything(Socket socket, BufferedWriter bufferedWriter, BufferedReader bufferedReader) {
         try {
+            if (socket != null) {
+                socket.close();
+            }
             if (bufferedReader != null) {
                 bufferedReader.close();
             }
             if (bufferedWriter != null) {
                 bufferedWriter.close();
             }
-            if (socket != null) {
-                socket.close();
-            }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public static void main(String[] args) throws InterruptedException {
-        Client.readSettings();
+    public static void main(String[] args) {
         Client client = new ClientBuilder()
                 .setConnection()
                 .build();
+        System.out.println("Для выхода из чата введите <exit>");
         client.listenForMsg();
         client.sendMsg();
-
 
     }
 
